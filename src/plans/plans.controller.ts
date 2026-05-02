@@ -9,6 +9,7 @@ import {
   Query,
   Req,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
 import { PlansService } from './plans.service';
 import { JwtAuthGuard } from '../auth/strategies/jwt-auth.guard';
@@ -17,8 +18,10 @@ import { GetPlansMonthQueryDto } from './dto/get-plans-month-query.dto';
 import { GetPlansRangeQueryDto } from './dto/get-plans-range-query.dto';
 import { CreatePlanItemDto } from './dto/create-plan-item.dto';
 import { UpdatePlanItemDto } from './dto/update-plan-item.dto';
+import { SortPlanItemsResponseInterceptor } from './sort-plan-items-response.interceptor';
 
 @Controller('plans')
+@UseInterceptors(SortPlanItemsResponseInterceptor)
 export class PlansController {
   constructor(private readonly plansService: PlansService) {}
 

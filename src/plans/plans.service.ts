@@ -7,10 +7,16 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { CreatePlanItemDto } from './dto/create-plan-item.dto';
 import { UpdatePlanItemDto } from './dto/update-plan-item.dto';
+import { type PlanItemSortFields, dayPlanWithSortedItems } from './plan-items-sort.util';
 
 @Injectable()
 export class PlansService {
   constructor(private readonly prisma: PrismaService) {}
+
+  /** Sort each day's `items` by planned `timeText` ascending (not raw `position`). */
+  private withSortedItems<T extends { items: PlanItemSortFields[] }>(plan: T): T {
+    return dayPlanWithSortedItems(plan);
+  }
 
   /**
    * Parses `YYYY-MM-DD` into a UTC calendar date (matches PostgreSQL `DATE` / Prisma `@db.Date`).
@@ -39,7 +45,7 @@ export class PlansService {
     startDate: Date,
     endDate: Date,
   ) {
-    return this.prisma.dayPlan.findMany({
+    const rows = await this.prisma.dayPlan.findMany({
       where: {
         userId,
         date: {
@@ -54,6 +60,7 @@ export class PlansService {
       },
       orderBy: { date: 'asc' },
     });
+    return rows.map((row) => this.withSortedItems(row));
   }
 
   /**
@@ -102,23 +109,23 @@ export class PlansService {
         },
       },
     });
-    if (!dayPlan) {
-      const newDayPlan = await this.prisma.dayPlan.create({
-        data: {
-          userId,
-          date: parsedDate,
-        },
-        include: {
-          items: {
-            orderBy: {
-              position: 'asc',
-            },
+    if (dayPlan) {
+      return this.withSortedItems(dayPlan);
+    }
+    const newDayPlan = await this.prisma.dayPlan.create({
+      data: {
+        userId,
+        date: parsedDate,
+      },
+      include: {
+        items: {
+          orderBy: {
+            position: 'asc',
           },
         },
-      });
-      return newDayPlan;
-    }
-    return dayPlan;
+      },
+    });
+    return this.withSortedItems(newDayPlan);
   }
 
   async createItem(userId: string, dto: CreatePlanItemDto) {
@@ -151,38 +158,39 @@ export class PlansService {
       where: {
         id: itemId,
       },
-			include: {
-				dayPlan: true,
-			},
+      include: {
+        dayPlan: true,
+      },
     });
 
     if (!item) throw new NotFoundException('Item not found');
     if (item.dayPlan.userId !== userId)
       throw new ForbiddenException('You are not allowed to update this item');
 
-		return this.prisma.planItem.update({
-			where: {
-				id: itemId,
-			},
-			data: {
-				...dto,
-			},
-		});
+    return this.prisma.planItem.update({
+      where: {
+        id: itemId,
+      },
+      data: {
+        ...dto,
+      },
+    });
   }
 
-	async deleteItem(userId:string, itemId:string) {
-		const item = await this.prisma.planItem.findUnique({
-			where: { id: itemId },
-			include: {
-				dayPlan: true,
-			},
-		})
+  async deleteItem(userId: string, itemId: string) {
+    const item = await this.prisma.planItem.findUnique({
+      where: { id: itemId },
+      include: {
+        dayPlan: true,
+      },
+    });
 
-		if(!item) throw new NotFoundException('Item not found');
-		if(item.dayPlan.userId !== userId) throw new ForbiddenException('You are not allowed to delete this item');
+    if (!item) throw new NotFoundException('Item not found');
+    if (item.dayPlan.userId !== userId)
+      throw new ForbiddenException('You are not allowed to delete this item');
 
-		return this.prisma.planItem.delete({
-			where: { id: itemId },
-		});
-	}
+    return this.prisma.planItem.delete({
+      where: { id: itemId },
+    });
+  }
 }
