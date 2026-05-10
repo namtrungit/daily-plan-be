@@ -22,6 +22,8 @@ Use this file as the **single source of truth** for backend progress. Check off 
 | 4   | `GET /plans?date=` + user scope | [ ]  |
 | 5   | CRUD `PlanItem` under day plan | [ ]   |
 | 6   | Health, validation, errors, CORS | [ ] |
+| 7   | Dashboard metrics + Redis cache | [ ] |
+| 8   | Notifications + Kafka events/consumers | [ ] |
 
 _Update the Status column as you go._
 
@@ -112,6 +114,45 @@ _Update the Status column as you go._
 - [ ] `enableCors()` in `main.ts` when preparing for Next.js (origins from env in production)
 
 **Deliverable:** API feels “production-shaped” for local dev and future deploy.
+
+---
+
+## Day 7 — Dashboard metrics + Redis cache
+
+**Goals**
+
+- [ ] Add dashboard summary endpoint (e.g. `GET /dashboard/summary?range=7d`)
+- [ ] Return core metrics: today completion, overdue count, upcoming tasks, 7-day completed trend, streak
+- [ ] Introduce Redis and cache dashboard summary by `userId + range`
+- [ ] Add cache invalidation after task create/update/delete
+
+**Suggested response shape**
+
+- [ ] `today`: `{ total, done, completionRate }`
+- [ ] `overdue`: `{ count }`
+- [ ] `upcoming`: `{ next2Hours }`
+- [ ] `trend7d`: `[{ date, doneCount }]`
+- [ ] `streak`: `{ days }`
+
+**Deliverable:** Dashboard API is fast and stable under repeated UI refreshes.
+
+---
+
+## Day 8 — Overdue notifications + Kafka
+
+**Goals**
+
+- [ ] Define domain events: `task.created`, `task.updated`, `task.completed`, `task.overdue`
+- [ ] Publish events from plan item mutation flow
+- [ ] Add Kafka consumer for notification workflow (store/send overdue notification records)
+- [ ] Add idempotency/dedup logic for overdue events (avoid duplicate notifications)
+
+**Optional stretch**
+
+- [ ] Separate analytics consumer to build pre-aggregated dashboard stats
+- [ ] Dead-letter or retry strategy notes for failed consumer processing
+
+**Deliverable:** End-to-end event flow exists and can power notification + analytics learning.
 
 ---
 
