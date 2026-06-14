@@ -7,14 +7,23 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { CreatePlanItemDto } from './dto/create-plan-item.dto';
 import { UpdatePlanItemDto } from './dto/update-plan-item.dto';
-import { type PlanItemSortFields, dayPlanWithSortedItems } from './plan-items-sort.util';
+import {
+  type PlanItemSortFields,
+  dayPlanWithSortedItems,
+} from './plan-items-sort.util';
+import { DashboardCacheService } from '../dashboard/dashboard-cache.service';
 
 @Injectable()
 export class PlansService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly dashboardCache: DashboardCacheService,
+  ) {}
 
   /** Sort each day's `items` by planned `timeText` ascending (not raw `position`). */
-  private withSortedItems<T extends { items: PlanItemSortFields[] }>(plan: T): T {
+  private withSortedItems<T extends { items: PlanItemSortFields[] }>(
+    plan: T,
+  ): T {
     return dayPlanWithSortedItems(plan);
   }
 
@@ -142,7 +151,7 @@ export class PlansService {
       );
     }
 
-    return this.prisma.planItem.create({
+    const item = await this.prisma.planItem.create({
       data: {
         dayPlanId: dto.dayPlanId,
         title: dto.title,
@@ -151,6 +160,8 @@ export class PlansService {
         position: dto.position ?? 0,
       },
     });
+    await this.dashboardCache.invalidateUser(userId);
+    return item;
   }
 
   async updateItem(userId: string, itemId: string, dto: UpdatePlanItemDto) {
@@ -167,7 +178,7 @@ export class PlansService {
     if (item.dayPlan.userId !== userId)
       throw new ForbiddenException('You are not allowed to update this item');
 
-    return this.prisma.planItem.update({
+    const updated = await this.prisma.planItem.update({
       where: {
         id: itemId,
       },
@@ -175,6 +186,8 @@ export class PlansService {
         ...dto,
       },
     });
+    await this.dashboardCache.invalidateUser(userId);
+    return updated;
   }
 
   async deleteItem(userId: string, itemId: string) {
@@ -189,8 +202,10 @@ export class PlansService {
     if (item.dayPlan.userId !== userId)
       throw new ForbiddenException('You are not allowed to delete this item');
 
-    return this.prisma.planItem.delete({
+    const deleted = await this.prisma.planItem.delete({
       where: { id: itemId },
     });
+    await this.dashboardCache.invalidateUser(userId);
+    return deleted;
   }
 }

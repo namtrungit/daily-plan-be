@@ -34,6 +34,18 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-
+  redis:
+    build:
+      context: ./redis
+      dockerfile: Dockerfile
+    container_name: daily-plan-redis
+    restart: unless-stopped
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
 volumes:
   postgres_data:

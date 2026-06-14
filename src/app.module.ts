@@ -6,6 +6,7 @@ import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './auth/auth.module';
 import { PlansModule } from './plans/plans.module';
 import { DashboardModule } from './dashboard/dashboard.module';
+import { RedisModule } from './redis/redis.module';
 
 @Module({
   imports: [
@@ -14,6 +15,7 @@ import { DashboardModule } from './dashboard/dashboard.module';
     AuthModule,
     PlansModule,
     DashboardModule,
+    RedisModule,
   ],
   controllers: [AppController],
   providers: [AppService],

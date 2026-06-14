@@ -1,9 +1,14 @@
 import { PrismaService } from '../prisma/prisma.service';
 import { Injectable } from '@nestjs/common';
+import { DashboardCacheService } from './dashboard-cache.service';
+import { DashboardRange, DashboardSummary } from './dashboard-summary.types';
 
 @Injectable()
 export class DashboardService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly dashboardCacheService: DashboardCacheService,
+  ) {}
 
   private async buildTodaySummary(userId: string, todayDate: Date) {
     const todayPlan = await this.prisma.dayPlan.findUnique({
@@ -88,39 +93,50 @@ export class DashboardService {
     return streakDays;
   }
 
-	private toYmdUtc(date: Date): string {
-		return date.toISOString().slice(0, 10);
-	}
+  private toYmdUtc(date: Date): string {
+    return date.toISOString().slice(0, 10);
+  }
 
-	private parseDateOnlyUtc(ymd: string): Date {
-		const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(ymd);
-		if(!match) {
-			throw new Error('Invalid YYYY-MM-DD');
-		}
-		const y = Number(match[1]);
-		const m = Number(match[2]);
-		const d = Number(match[3]);
-		return new Date(Date.UTC(y, m - 1, d));
-	}
+  private parseDateOnlyUtc(ymd: string): Date {
+    const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(ymd);
+    if (!match) {
+      throw new Error('Invalid YYYY-MM-DD');
+    }
+    const y = Number(match[1]);
+    const m = Number(match[2]);
+    const d = Number(match[3]);
+    return new Date(Date.UTC(y, m - 1, d));
+  }
 
-	private addDaysUtc(date: Date, days: number): Date {
-		const next = new Date(date);
-		next.setUTCDate(next.getUTCDate() + days);
-		return next;
-	}
-	
+  private addDaysUtc(date: Date, days: number): Date {
+    const next = new Date(date);
+    next.setUTCDate(next.getUTCDate() + days);
+    return next;
+  }
+
   async getSummary(userId: string, range: '7d' | '30d' = '7d') {
-		const todayYmd = this.toYmdUtc(new Date());
-		const todayDate = this.parseDateOnlyUtc(todayYmd);
-		const today = await this.buildTodaySummary(userId, todayDate);
-		const overdueCount = await this.getOverdueCount(userId, todayDate);
-		const trendDates = this.buildTrendDates(todayDate, range);
-		const trend = await this.buildTrend(userId, trendDates);
-		const streakDays = await this.buildStreak(userId, todayDate);
+    const cached = await this.dashboardCacheService.get(userId, range);
+    if (cached) return cached;
+    const summary = await this.buildSummaryFromDb(userId, range);
+    await this.dashboardCacheService.set(userId, range, summary);
+    return summary;
+  }
+  
+  private async buildSummaryFromDb(
+    userId: string,
+    range: DashboardRange = '7d',
+  ): Promise<DashboardSummary> {
+    const todayYmd = this.toYmdUtc(new Date());
+    const todayDate = this.parseDateOnlyUtc(todayYmd);
+    const today = await this.buildTodaySummary(userId, todayDate);
+    const overdueCount = await this.getOverdueCount(userId, todayDate);
+    const trendDates = this.buildTrendDates(todayDate, range);
+    const trend = await this.buildTrend(userId, trendDates);
+    const streakDays = await this.buildStreak(userId, todayDate);
     return {
       today,
       overdue: { count: overdueCount },
-      trend: trend,
+      trend,
       streak: { days: streakDays },
       meta: { range, userId, todayYmd },
     };
